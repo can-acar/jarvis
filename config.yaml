@@ -1,0 +1,10 @@
+blockedCommands:
+  - rm
+  - shutdown
+defaultShell: bash
+allowedDirectories:
+  - /tmp
+  - /var/log
+fileReadLineLimit: 1000
+fileWriteLineLimit: 50
+telemetryEnabled: false
