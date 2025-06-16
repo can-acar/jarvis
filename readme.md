@@ -28,7 +28,7 @@ This MCP server enables seamless integration with AI models through the Model Co
 
 1. Clone the repository:
 ```bash
-git clone [<repository-url>](https://github.com/can-acar/jarvis)
+git clone (https://github.com/can-acar/jarvis)
 cd jarvis
 ```
 
