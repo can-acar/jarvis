@@ -16,8 +16,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// ==================== HANDLER IMPLEMENTATIONS ====================
-
+// HandleFetchWeb processes a structured HTTP request for fetching resources
 func HandleFetchWeb(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	url, err := req.RequireString("url")
 	if err != nil {
