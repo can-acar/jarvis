@@ -33,22 +33,7 @@ func HandleFetchWeb(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 	maxRedirects := int(mcp.ParseFloat64(req, "max_redirects", 10))
 
 	// Create HTTP client
-	client := &http.Client{
-		Timeout: timeout,
-	}
-
-	if !followRedirects {
-		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		}
-	} else if maxRedirects > 0 {
-		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-			if len(via) >= maxRedirects {
-				return fmt.Errorf("stopped after %d redirects", maxRedirects)
-			}
-			return nil
-		}
-	}
+	client := common.CreateHTTPClient(timeout, followRedirects, maxRedirects)
 
 	// Create request
 	var bodyReader io.Reader
@@ -117,7 +102,7 @@ func HandleFetchWebContent(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	userAgent := mcp.ParseString(req, "user_agent", common.BuildUserAgent("Jarvis-MCP", "1.0.0"))
 	includeHeaders := mcp.ParseBoolean(req, "include_headers", false)
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := common.CreateHTTPClient(30*time.Second, true, 10)
 
 	var bodyReader io.Reader
 	if body := mcp.ParseString(req, "body", ""); body != "" {
@@ -199,7 +184,7 @@ func HandleFetchWebFile(ctx context.Context, req mcp.CallToolRequest) (*mcp.Call
 		}
 	}
 
-	client := &http.Client{Timeout: 10 * time.Minute}
+	client := common.CreateHTTPClient(10*time.Minute, true, 10)
 
 	httpReq, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -297,7 +282,7 @@ func HandleFetchWebImage(ctx context.Context, req mcp.CallToolRequest) (*mcp.Cal
 	maxSizeMB := mcp.ParseFloat64(req, "max_size_mb", 50)
 	convertFormat := mcp.ParseBoolean(req, "convert_format", false)
 
-	client := &http.Client{Timeout: 5 * time.Minute}
+	client := common.CreateHTTPClient(5*time.Minute, true, 10)
 
 	httpReq, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {

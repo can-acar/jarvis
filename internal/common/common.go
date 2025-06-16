@@ -455,6 +455,28 @@ func BuildUserAgent(appName, version string) string {
 	return fmt.Sprintf("%s/%s", appName, version)
 }
 
+// CreateHTTPClient creates a configured HTTP client with timeout and redirect settings
+func CreateHTTPClient(timeout time.Duration, followRedirects bool, maxRedirects int) *http.Client {
+	client := &http.Client{
+		Timeout: timeout,
+	}
+
+	if !followRedirects {
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+	} else if maxRedirects > 0 {
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			if len(via) >= maxRedirects {
+				return fmt.Errorf("stopped after %d redirects", maxRedirects)
+			}
+			return nil
+		}
+	}
+
+	return client
+}
+
 // ValidateURL performs basic URL validation
 func ValidateURL(url string) error {
 	if url == "" {
@@ -594,6 +616,19 @@ func FormatError(err error, operation string) string {
 		return ""
 	}
 	return fmt.Sprintf("Failed to %s: %v", operation, err)
+}
+
+// NewErrorResult creates a standardized error result
+func NewErrorResult(message string, args ...interface{}) (interface{}, error) {
+	if len(args) > 0 {
+		return nil, fmt.Errorf(message, args...)
+	}
+	return nil, fmt.Errorf("%s", message)
+}
+
+// NewParameterError creates a standardized parameter error
+func NewParameterError(param string, err error) (interface{}, error) {
+	return nil, fmt.Errorf("Invalid %s parameter: %v", param, err)
 }
 
 // Timing utilities
