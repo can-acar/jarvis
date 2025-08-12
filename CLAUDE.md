@@ -65,12 +65,21 @@ GOOS=linux GOARCH=amd64 go build -o jarvis-linux main.go
 
 #### Agent Usage Examples
 Once in interactive mode (`jarvis >> `), you can use:
+
+**Direct Tool Commands:**
+```
+list current directory          → Uses list-directory tool
+show me main.go file           → Uses read-file tool  
+files with .go extension      → Uses search-files tool
+find all Go files in this project → Uses search-files tool
+```
+
+**Natural Language Queries (with LLM fallback):**
 ```
 Analyze current directory
-List all Go files in this project
 What kind of project is this?
-Explain the main.go file
-Show me the project structure
+Explain the structure of this codebase
+Compare different Go files
 ```
 
 ## High-Level Architecture
@@ -92,6 +101,7 @@ Show me the project structure
 - **Fetch Tools** (`internal/fetch/`): HTTP requests and file downloading
 - **LLM Integration** (`internal/llm/`): Model communication and prompt handling
 - **Agent Module** (`internal/agent/`): Interactive AI agent functionality
+- **Tool Bridge** (`internal/bridge/`): MCP tool bridge for agent-to-tool communication
 
 ### Configuration System
 
@@ -122,10 +132,11 @@ The server uses a hybrid configuration approach:
 #### Interactive Agent Mode
 1. **User Input**: User enters natural language query via interactive prompt
 2. **Context Gathering**: Agent gathers current directory context and system information
-3. **Prompt Construction**: System prompt + context + user query combined into LLM prompt
-4. **Model Communication**: Request sent to configured LLM (e.g., Ollama API)
-5. **Response Processing**: LLM response parsed and formatted for display
-6. **Interactive Loop**: Process continues until user exits session
+3. **Tool Pattern Matching**: Query analyzed to determine if specific MCP tools should be used
+4. **Tool Execution**: If pattern matches, appropriate tool executed via bridge (list-directory, read-file, search-files)
+5. **LLM Fallback**: For complex queries, enhanced prompt sent to configured LLM with tool context
+6. **Response Formatting**: Results formatted and presented to user with tool usage information
+7. **Interactive Loop**: Process continues until user exits session
 
 ### Data Types and Interfaces
 
@@ -135,6 +146,9 @@ The server uses a hybrid configuration approach:
 - `CommandLineArgs`: Parsed command line arguments for model and configuration setup
 - `AgentRequest`: User request structure for interactive agent mode
 - `AgentResponse`: Agent response structure with success/error handling
+- `ToolDefinition`: Bridge tool definition with name, description, and handler
+- `ToolCall`: Tool execution request with parameters
+- `ToolResult`: Tool execution result with success/error information
 - `EditOperation`: Represents text editing operations with line-based targeting
 - `HTTPRequestConfig`: Configures web requests with headers, timeouts, validation
 - `CommandExecutionConfig`: Defines command execution parameters

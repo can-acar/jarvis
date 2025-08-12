@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"jarvis/internal/bridge"
 	"jarvis/internal/common"
 	"jarvis/internal/types"
 	"net/http"
@@ -17,25 +18,58 @@ import (
 
 // LLMClient handles communication with LLM models
 type LLMClient struct {
-	config *types.ModelConfig
+	config     *types.ModelConfig
+	toolBridge *bridge.ToolBridge
 }
 
 // OllamaRequest represents a request to Ollama API
 type OllamaRequest struct {
-	Model    string `json:"model"`
-	Prompt   string `json:"prompt"`
-	Stream   bool   `json:"stream"`
-	System   string `json:"system,omitempty"`
-	Context  []int  `json:"context,omitempty"`
+	Model    string                   `json:"model"`
+	Messages []OllamaMessage          `json:"messages"`
+	Tools    []OllamaToolDefinition   `json:"tools,omitempty"`
+	Stream   bool                     `json:"stream"`
+	Options  map[string]interface{}   `json:"options,omitempty"`
+}
+
+// OllamaMessage represents a message in chat format
+type OllamaMessage struct {
+	Role       string                 `json:"role"`
+	Content    string                 `json:"content"`
+	ToolCalls  []OllamaToolCall       `json:"tool_calls,omitempty"`
+}
+
+// OllamaToolDefinition represents a tool definition for Ollama
+type OllamaToolDefinition struct {
+	Type     string                 `json:"type"`
+	Function OllamaFunctionDef      `json:"function"`
+}
+
+// OllamaFunctionDef represents a function definition
+type OllamaFunctionDef struct {
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Parameters  map[string]interface{} `json:"parameters"`
+}
+
+// OllamaToolCall represents a tool call from the model
+type OllamaToolCall struct {
+	ID       string                 `json:"id"`
+	Type     string                 `json:"type"`
+	Function OllamaFunctionCall     `json:"function"`
+}
+
+// OllamaFunctionCall represents a function call
+type OllamaFunctionCall struct {
+	Name      string                 `json:"name"`
+	Arguments map[string]interface{} `json:"arguments"`
 }
 
 // OllamaResponse represents a response from Ollama API
 type OllamaResponse struct {
-	Model     string `json:"model"`
-	Response  string `json:"response"`
-	Done      bool   `json:"done"`
-	Context   []int  `json:"context,omitempty"`
-	Error     string `json:"error,omitempty"`
+	Model   string        `json:"model"`
+	Message OllamaMessage `json:"message"`
+	Done    bool          `json:"done"`
+	Error   string        `json:"error,omitempty"`
 }
 
 // NewLLMClient creates a new LLM client with the configured model
@@ -46,18 +80,16 @@ func NewLLMClient() (*LLMClient, error) {
 	}
 	
 	return &LLMClient{
-		config: cfg.ModelConfig,
+		config:     cfg.ModelConfig,
+		toolBridge: bridge.NewToolBridge(),
 	}, nil
 }
 
 // ProcessRequest processes a user request using the configured LLM
 func (c *LLMClient) ProcessRequest(ctx context.Context, request *types.AgentRequest) (*types.AgentResponse, error) {
-	// Build the prompt with system context
-	prompt := c.buildPrompt(request)
-	
-	// Determine model type and call appropriate handler
+	// Always use function calling approach for proper LLM integration
 	if strings.HasPrefix(c.config.Model, "ollama:") {
-		return c.processOllamaRequest(ctx, prompt, request)
+		return c.processOllamaRequestWithFunctionCalling(ctx, request)
 	}
 	
 	return nil, fmt.Errorf("unsupported model type: %s", c.config.Model)
@@ -94,20 +126,348 @@ func (c *LLMClient) buildPrompt(request *types.AgentRequest) string {
 	return promptBuilder.String()
 }
 
-// processOllamaRequest handles requests to Ollama models
-func (c *LLMClient) processOllamaRequest(ctx context.Context, prompt string, request *types.AgentRequest) (*types.AgentResponse, error) {
-	// Extract model name (remove "ollama:" prefix)
-	modelName := strings.TrimPrefix(c.config.Model, "ollama:")
+// Legacy function - now redirected to function calling approach
+func (c *LLMClient) processRequestWithTools(ctx context.Context, request *types.AgentRequest) (*types.AgentResponse, error) {
+	return c.processOllamaRequestWithFunctionCalling(ctx, request)
+}
+
+// buildToolAwarePrompt builds a prompt that includes tool capabilities
+func (c *LLMClient) buildToolAwarePrompt(request *types.AgentRequest) string {
+	var promptBuilder strings.Builder
 	
-	// Prepare Ollama request
-	ollamaReq := OllamaRequest{
-		Model:  modelName,
-		Prompt: prompt,
-		Stream: false,
+	// Add system prompt
+	if c.config.SystemPrompt != "" {
+		promptBuilder.WriteString(c.config.SystemPrompt)
+		promptBuilder.WriteString("\n\n")
 	}
 	
-	if c.config.SystemPrompt != "" {
-		ollamaReq.System = c.config.SystemPrompt
+	// Add tool capabilities information
+	promptBuilder.WriteString("Available Tools:\n")
+	tools := c.toolBridge.GetAvailableTools()
+	for _, tool := range tools {
+		promptBuilder.WriteString(fmt.Sprintf("- %s: %s\n", tool.Name, tool.Description))
+	}
+	promptBuilder.WriteString("\n")
+	
+	// Add context information
+	if request.WorkingDir != "" {
+		promptBuilder.WriteString(fmt.Sprintf("Current working directory: %s\n", request.WorkingDir))
+	}
+	
+	// Add available context
+	if len(request.Context) > 0 {
+		promptBuilder.WriteString("Directory Context:\n")
+		for key, value := range request.Context {
+			promptBuilder.WriteString(fmt.Sprintf("- %s: %s\n", key, value))
+		}
+		promptBuilder.WriteString("\n")
+	}
+	
+	// Add instructions for tool usage
+	promptBuilder.WriteString("Instructions:\n")
+	promptBuilder.WriteString("- You can perform file operations, directory listings, and searches\n")
+	promptBuilder.WriteString("- Use the available tools when appropriate for the user's request\n")
+	promptBuilder.WriteString("- Provide clear and helpful responses based on the tool results\n\n")
+	
+	// Add the user query
+	promptBuilder.WriteString("User request: ")
+	promptBuilder.WriteString(request.Query)
+	
+	return promptBuilder.String()
+}
+
+// Helper functions for pattern matching
+func (c *LLMClient) matchesPattern(text string, patterns []string) bool {
+	for _, pattern := range patterns {
+		if strings.Contains(text, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// extractDirectoryFromQuery extracts specific directory path from query
+func (c *LLMClient) extractDirectoryFromQuery(query, workingDir string) string {
+	// Look for common directory names in the query
+	words := strings.Fields(query)
+	
+	for _, word := range words {
+		// Remove common suffixes
+		cleanWord := strings.TrimSuffix(word, "klasörü")
+		cleanWord = strings.TrimSuffix(cleanWord, "klasörünün")
+		cleanWord = strings.TrimSuffix(cleanWord, "folder")
+		cleanWord = strings.TrimSuffix(cleanWord, "directory")
+		cleanWord = strings.TrimSuffix(cleanWord, "dizinin")
+		cleanWord = strings.TrimSuffix(cleanWord, "dizini")
+		
+		// Skip common words
+		if cleanWord == "içinde" || cleanWord == "in" || cleanWord == "ne" || 
+		   cleanWord == "var" || cleanWord == "what" || cleanWord == "is" || 
+		   cleanWord == "neler" || cleanWord == "" {
+			continue
+		}
+		
+		// Check if this could be a directory name
+		testPath := filepath.Join(workingDir, cleanWord)
+		if info, err := os.Stat(testPath); err == nil && info.IsDir() {
+			return testPath
+		}
+	}
+	
+	// Default to working directory if no specific directory found
+	return workingDir
+}
+
+func (c *LLMClient) matchesFileExtensionPattern(query string) bool {
+	extensions := []string{".go", ".js", ".py", ".java", ".txt", ".md", ".json", ".yaml", ".yml"}
+	for _, ext := range extensions {
+		if strings.Contains(query, ext) {
+			return true
+		}
+	}
+	// Also check for "extension" or "files" keywords - English and Turkish
+	return c.matchesPattern(query, []string{"extension", "files with", "*.go", "*.js", "*.py", "uzantı", "uzantılı", "dosyalar"})
+}
+
+// Tool execution functions
+func (c *LLMClient) executeDirectoryListing(ctx context.Context, path string) (interface{}, error) {
+	toolCall := bridge.ToolCall{
+		Name: "list-directory",
+		Parameters: map[string]interface{}{
+			"path":        path,
+			"show_hidden": false,
+		},
+	}
+	
+	result := c.toolBridge.ExecuteTool(ctx, toolCall)
+	if !result.Success {
+		return nil, fmt.Errorf(result.Error)
+	}
+	
+	return result.Result, nil
+}
+
+func (c *LLMClient) executeFileSearch(ctx context.Context, request *types.AgentRequest) (interface{}, error) {
+	// Extract file extension from query
+	query := strings.ToLower(request.Query)
+	var extensions []string
+	
+	// Common file extensions
+	extMap := map[string]string{
+		"go":     ".go",
+		"js":     ".js",
+		"python": ".py",
+		"py":     ".py",
+		"java":   ".java",
+		"txt":    ".txt",
+		"md":     ".md",
+		"json":   ".json",
+		"yaml":   ".yaml",
+		"yml":    ".yml",
+	}
+	
+	for keyword, ext := range extMap {
+		if strings.Contains(query, keyword) || strings.Contains(query, ext) {
+			extensions = append(extensions, ext)
+		}
+	}
+	
+	if len(extensions) == 0 {
+		extensions = []string{".go"} // Default to Go files
+	}
+	
+	toolCall := bridge.ToolCall{
+		Name: "search-files",
+		Parameters: map[string]interface{}{
+			"pattern":         "*", // Search all files
+			"path":            request.WorkingDir,
+			"file_extensions": extensions,
+		},
+	}
+	
+	result := c.toolBridge.ExecuteTool(ctx, toolCall)
+	if !result.Success {
+		return nil, fmt.Errorf(result.Error)
+	}
+	
+	return result.Result, nil
+}
+
+func (c *LLMClient) executeFileRead(ctx context.Context, request *types.AgentRequest) (interface{}, error) {
+	query := strings.ToLower(request.Query)
+	var filePath string
+	
+	// Try to determine which file to read
+	if strings.Contains(query, "main.go") {
+		filePath = filepath.Join(request.WorkingDir, "main.go")
+	} else if strings.Contains(query, "readme") {
+		filePath = filepath.Join(request.WorkingDir, "README.md")
+	} else if strings.Contains(query, "config") {
+		filePath = filepath.Join(request.WorkingDir, "config.yaml")
+	} else {
+		return nil, fmt.Errorf("could not determine which file to read")
+	}
+	
+	toolCall := bridge.ToolCall{
+		Name: "read-file",
+		Parameters: map[string]interface{}{
+			"path":  filePath,
+			"lines": 100, // Limit to first 100 lines
+		},
+	}
+	
+	result := c.toolBridge.ExecuteTool(ctx, toolCall)
+	if !result.Success {
+		return nil, fmt.Errorf(result.Error)
+	}
+	
+	return result.Result, nil
+}
+
+// Response formatting functions
+func (c *LLMClient) formatDirectoryResponse(result interface{}, query string) string {
+	data, ok := result.(map[string]interface{})
+	if !ok {
+		return "Failed to format directory response"
+	}
+	
+	path := data["path"].(string)
+	entries := data["entries"].([]map[string]interface{})
+	count := data["count"].(int)
+	
+	var response strings.Builder
+	response.WriteString(fmt.Sprintf("📁 Directory contents of %s:\n\n", path))
+	response.WriteString(fmt.Sprintf("Found %d items:\n\n", count))
+	
+	// Group by type
+	var directories, files []map[string]interface{}
+	for _, entry := range entries {
+		if entry["is_dir"].(bool) {
+			directories = append(directories, entry)
+		} else {
+			files = append(files, entry)
+		}
+	}
+	
+	if len(directories) > 0 {
+		response.WriteString("📂 Directories:\n")
+		for _, dir := range directories {
+			response.WriteString(fmt.Sprintf("  - %s/\n", dir["name"].(string)))
+		}
+		response.WriteString("\n")
+	}
+	
+	if len(files) > 0 {
+		response.WriteString("📄 Files:\n")
+		for _, file := range files {
+			size := file["size"].(int64)
+			response.WriteString(fmt.Sprintf("  - %s (%s)\n", file["name"].(string), c.formatFileSize(size)))
+		}
+	}
+	
+	return response.String()
+}
+
+func (c *LLMClient) formatFileSearchResponse(result interface{}, query string) string {
+	data, ok := result.(map[string]interface{})
+	if !ok {
+		return "Failed to format file search response"
+	}
+	
+	searchPath := data["search_path"].(string)
+	results := data["results"].([]map[string]interface{})
+	totalFiles := data["total_files"].(int)
+	
+	var response strings.Builder
+	response.WriteString(fmt.Sprintf("🔍 File search results in %s:\n\n", searchPath))
+	response.WriteString(fmt.Sprintf("Found %d matching files:\n\n", totalFiles))
+	
+	if totalFiles == 0 {
+		response.WriteString("No files found matching the criteria.\n")
+	} else {
+		for i, result := range results {
+			if i >= 20 { // Limit to first 20 results
+				response.WriteString(fmt.Sprintf("... and %d more files\n", totalFiles-20))
+				break
+			}
+			filePath := result["file"].(string)
+			response.WriteString(fmt.Sprintf("  📄 %s\n", filePath))
+		}
+	}
+	
+	return response.String()
+}
+
+func (c *LLMClient) formatFileReadResponse(result interface{}, query string) string {
+	data, ok := result.(map[string]interface{})
+	if !ok {
+		return "Failed to format file read response"
+	}
+	
+	path := data["path"].(string)
+	content := data["content"].(string)
+	totalLines := data["total_lines"].(int)
+	linesShown := data["lines_shown"].(int)
+	truncated := data["truncated"].(bool)
+	
+	var response strings.Builder
+	response.WriteString(fmt.Sprintf("📄 Contents of %s:\n\n", path))
+	
+	if truncated {
+		response.WriteString(fmt.Sprintf("Showing first %d of %d lines:\n\n", linesShown, totalLines))
+	} else {
+		response.WriteString(fmt.Sprintf("Total lines: %d\n\n", totalLines))
+	}
+	
+	response.WriteString("```\n")
+	response.WriteString(content)
+	response.WriteString("\n```\n")
+	
+	if truncated {
+		response.WriteString(fmt.Sprintf("\n... (truncated, %d more lines available)", totalLines-linesShown))
+	}
+	
+	return response.String()
+}
+
+func (c *LLMClient) formatFileSize(size int64) string {
+	if size < 1024 {
+		return fmt.Sprintf("%d B", size)
+	} else if size < 1024*1024 {
+		return fmt.Sprintf("%.1f KB", float64(size)/1024)
+	} else {
+		return fmt.Sprintf("%.1f MB", float64(size)/(1024*1024))
+	}
+}
+
+// processOllamaRequestWithFunctionCalling processes request with proper function calling
+func (c *LLMClient) processOllamaRequestWithFunctionCalling(ctx context.Context, request *types.AgentRequest) (*types.AgentResponse, error) {
+	modelName := strings.TrimPrefix(c.config.Model, "ollama:")
+	
+	// Convert Jarvis tools to Ollama tool format
+	tools := c.convertToOllamaTools()
+	
+	// Build system message
+	systemMessage := c.buildSystemMessage(request)
+	
+	// Build user message
+	userMessage := c.buildUserMessage(request)
+	
+	// Prepare Ollama request with function calling
+	ollamaReq := OllamaRequest{
+		Model: modelName,
+		Messages: []OllamaMessage{
+			{
+				Role:    "system",
+				Content: systemMessage,
+			},
+			{
+				Role:    "user",
+				Content: userMessage,
+			},
+		},
+		Tools:  tools,
+		Stream: false,
 	}
 	
 	// Marshal request
@@ -120,7 +480,7 @@ func (c *LLMClient) processOllamaRequest(ctx context.Context, prompt string, req
 	}
 	
 	// Create HTTP request
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", "http://localhost:11434/api/generate", bytes.NewBuffer(reqBody))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", "http://localhost:11434/api/chat", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return &types.AgentResponse{
 			Success: false,
@@ -159,7 +519,7 @@ func (c *LLMClient) processOllamaRequest(ctx context.Context, prompt string, req
 		}, nil
 	}
 	
-	// Check for errors in response
+	// Check for errors
 	if ollamaResp.Error != "" {
 		return &types.AgentResponse{
 			Success: false,
@@ -167,15 +527,194 @@ func (c *LLMClient) processOllamaRequest(ctx context.Context, prompt string, req
 		}, nil
 	}
 	
-	// Return successful response
+	// Process tool calls if any
+	if len(ollamaResp.Message.ToolCalls) > 0 {
+		return c.handleToolCalls(ctx, ollamaResp.Message.ToolCalls, request)
+	}
+	
+	// Return direct response if no tool calls
 	return &types.AgentResponse{
-		Response: ollamaResp.Response,
+		Response: ollamaResp.Message.Content,
 		Success:  true,
 		Context: map[string]interface{}{
-			"model": ollamaResp.Model,
+			"model":       ollamaResp.Model,
 			"working_dir": request.WorkingDir,
 		},
 	}, nil
+}
+
+// convertToOllamaTools converts bridge tools to Ollama tool format
+func (c *LLMClient) convertToOllamaTools() []OllamaToolDefinition {
+	bridgeTools := c.toolBridge.GetAvailableTools()
+	ollamaTools := make([]OllamaToolDefinition, len(bridgeTools))
+	
+	for i, tool := range bridgeTools {
+		ollamaTools[i] = OllamaToolDefinition{
+			Type: "function",
+			Function: OllamaFunctionDef{
+				Name:        tool.Name,
+				Description: tool.Description,
+				Parameters:  tool.Parameters,
+			},
+		}
+	}
+	
+	return ollamaTools
+}
+
+// buildSystemMessage creates system message with context
+func (c *LLMClient) buildSystemMessage(request *types.AgentRequest) string {
+	var systemBuilder strings.Builder
+	
+	// Add configured system prompt
+	if c.config.SystemPrompt != "" {
+		systemBuilder.WriteString(c.config.SystemPrompt)
+		systemBuilder.WriteString("\n\n")
+	}
+	
+	// Add context information
+	systemBuilder.WriteString("You are Jarvis, an AI assistant with access to system tools.\n")
+	systemBuilder.WriteString("You can perform file operations, directory listings, and other system tasks.\n")
+	systemBuilder.WriteString("Use the available functions when appropriate for the user's requests.\n\n")
+	
+	// Add current context
+	if request.WorkingDir != "" {
+		systemBuilder.WriteString(fmt.Sprintf("Current working directory: %s\n", request.WorkingDir))
+	}
+	
+	if len(request.Context) > 0 {
+		systemBuilder.WriteString("Directory context:\n")
+		for key, value := range request.Context {
+			systemBuilder.WriteString(fmt.Sprintf("- %s: %s\n", key, value))
+		}
+	}
+	
+	return systemBuilder.String()
+}
+
+// buildUserMessage creates user message
+func (c *LLMClient) buildUserMessage(request *types.AgentRequest) string {
+	return request.Query
+}
+
+// handleToolCalls processes tool calls from the LLM
+func (c *LLMClient) handleToolCalls(ctx context.Context, toolCalls []OllamaToolCall, request *types.AgentRequest) (*types.AgentResponse, error) {
+	var toolsUsed []string
+	var results []string
+	
+	for _, toolCall := range toolCalls {
+		// Arguments are already in the correct format
+		args := toolCall.Function.Arguments
+		
+		// Execute tool via bridge
+		bridgeCall := bridge.ToolCall{
+			Name:       toolCall.Function.Name,
+			Parameters: args,
+		}
+		
+		result := c.toolBridge.ExecuteTool(ctx, bridgeCall)
+		toolsUsed = append(toolsUsed, toolCall.Function.Name)
+		
+		if !result.Success {
+			results = append(results, fmt.Sprintf("Tool %s failed: %s", toolCall.Function.Name, result.Error))
+		} else {
+			// Format tool result for display
+			resultStr := c.formatToolResult(toolCall.Function.Name, result.Result)
+			results = append(results, resultStr)
+		}
+	}
+	
+	// Combine all results
+	finalResponse := strings.Join(results, "\n\n")
+	
+	return &types.AgentResponse{
+		Response:  finalResponse,
+		ToolsUsed: toolsUsed,
+		Success:   true,
+		Context: map[string]interface{}{
+			"working_dir": request.WorkingDir,
+			"tools_used": toolsUsed,
+		},
+	}, nil
+}
+
+// formatToolResult formats tool execution results for display
+func (c *LLMClient) formatToolResult(toolName string, result interface{}) string {
+	switch toolName {
+	case "list-directory":
+		return c.formatDirectoryResponse(result, "")
+	case "read-file":
+		return c.formatFileReadResponse(result, "")
+	case "search-files":
+		return c.formatFileSearchResponse(result, "")
+	case "execute-command":
+		return c.formatCommandResponse(result)
+	default:
+		// Generic JSON formatting
+		jsonBytes, _ := json.MarshalIndent(result, "", "  ")
+		return fmt.Sprintf("🔧 %s result:\n```json\n%s\n```", toolName, string(jsonBytes))
+	}
+}
+
+// formatCommandResponse formats command execution results
+func (c *LLMClient) formatCommandResponse(result interface{}) string {
+	data, ok := result.(map[string]interface{})
+	if !ok {
+		return "Failed to format command response"
+	}
+	
+	command := data["command"].(string)
+	success := data["success"].(bool)
+	duration := data["duration"].(string)
+	output := data["output"].(string)
+	
+	var response strings.Builder
+	
+	if success {
+		response.WriteString(fmt.Sprintf("✅ Command executed successfully in %s:\n", duration))
+		response.WriteString(fmt.Sprintf("```bash\n%s\n```\n\n", command))
+		
+		if output != "" {
+			response.WriteString("Output:\n")
+			response.WriteString("```\n")
+			response.WriteString(output)
+			response.WriteString("```\n")
+		} else {
+			response.WriteString("Command completed with no output.\n")
+		}
+	} else {
+		response.WriteString(fmt.Sprintf("❌ Command failed in %s:\n", duration))
+		response.WriteString(fmt.Sprintf("```bash\n%s\n```\n\n", command))
+		
+		if errorMsg, ok := data["error"].(string); ok {
+			response.WriteString(fmt.Sprintf("Error: %s\n", errorMsg))
+		}
+		
+		if output != "" {
+			response.WriteString("Output:\n")
+			response.WriteString("```\n")
+			response.WriteString(output)
+			response.WriteString("```\n")
+		}
+		
+		if exitCode, ok := data["exit_code"].(int); ok && exitCode != 0 {
+			response.WriteString(fmt.Sprintf("Exit code: %d\n", exitCode))
+		}
+	}
+	
+	return response.String()
+}
+
+// processOllamaRequest handles legacy requests (fallback to function calling)
+func (c *LLMClient) processOllamaRequest(ctx context.Context, prompt string, request *types.AgentRequest) (*types.AgentResponse, error) {
+	// Convert to modern function calling approach
+	legacyRequest := &types.AgentRequest{
+		Query:      prompt,
+		Context:    request.Context,
+		WorkingDir: request.WorkingDir,
+		UseTools:   request.UseTools,
+	}
+	return c.processOllamaRequestWithFunctionCalling(ctx, legacyRequest)
 }
 
 // GetDirectoryContext gathers context about the current directory
