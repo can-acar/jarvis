@@ -1,0 +1,14 @@
+{
+    "blockedCommands": [
+        "shutdown"
+    ],
+    "defaultShell": "bash",
+    "allowedDirectories": [
+        "/Users/r00t",
+        "/Users/r00t/projects",
+        "/Users/r00t/github"
+    ],
+    "fileReadLineLimit": 1000,
+    "fileWriteLineLimit": 50,
+    "telemetryEnabled": false
+}

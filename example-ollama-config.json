@@ -1,0 +1,18 @@
+{
+  "blockedCommands": ["rm -rf", "shutdown", "reboot"],
+  "defaultShell": "bash",
+  "allowedDirectories": [
+    "/tmp",
+    "/var/log",
+    "/Users/r00t",
+    "/home/r00t/projects",
+    "/home/r00t/github"
+  ],
+  "fileReadLineLimit": 2000,
+  "fileWriteLineLimit": 100,
+  "telemetryEnabled": false,
+  "modelConfig": {
+    "model": "ollama:qwen3",
+    "systemPrompt": "You are Jarvis, a highly capable AI assistant with access to system tools. Be helpful, accurate, and secure in all operations."
+  }
+}

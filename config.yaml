@@ -1,10 +1,12 @@
 blockedCommands:
-  - rm
   - shutdown
 defaultShell: bash
 allowedDirectories:
   - /tmp
   - /var/log
+  - /Users/r00t
+  - /home/r00t/projects
+  - /home/r00t/github
 fileReadLineLimit: 1000
 fileWriteLineLimit: 50
 telemetryEnabled: false

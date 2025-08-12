@@ -24,12 +24,47 @@ type MultiFileEditRequest struct {
 
 // ServerConfig represents the server configuration
 type ServerConfig struct {
-	BlockedCommands    []string `json:"blockedCommands"`
-	DefaultShell       string   `json:"defaultShell"`
-	AllowedDirectories []string `json:"allowedDirectories"`
-	FileReadLineLimit  int      `json:"fileReadLineLimit"`
-	FileWriteLineLimit int      `json:"fileWriteLineLimit"`
-	TelemetryEnabled   bool     `json:"telemetryEnabled"`
+	BlockedCommands    []string     `json:"blockedCommands"`
+	DefaultShell       string       `json:"defaultShell"`
+	AllowedDirectories []string     `json:"allowedDirectories"`
+	FileReadLineLimit  int          `json:"fileReadLineLimit"`
+	FileWriteLineLimit int          `json:"fileWriteLineLimit"`
+	TelemetryEnabled   bool         `json:"telemetryEnabled"`
+	ModelConfig        *ModelConfig `json:"modelConfig,omitempty"`
+}
+
+// ModelConfig represents the LLM model configuration
+type ModelConfig struct {
+	Model        string `json:"model"`
+	ConfigFile   string `json:"configFile,omitempty"`
+	SystemPrompt string `json:"systemPrompt,omitempty"`
+}
+
+// CommandLineArgs represents parsed command line arguments
+type CommandLineArgs struct {
+	Model        string
+	ConfigFile   string
+	SystemPrompt string
+	Interactive  bool
+	Help         bool
+	Version      bool
+}
+
+// AgentRequest represents a user request to the agent
+type AgentRequest struct {
+	Query       string            `json:"query"`
+	Context     map[string]string `json:"context,omitempty"`
+	WorkingDir  string            `json:"working_dir,omitempty"`
+	UseTools    bool              `json:"use_tools,omitempty"`
+}
+
+// AgentResponse represents the agent's response
+type AgentResponse struct {
+	Response    string                 `json:"response"`
+	ToolsUsed   []string               `json:"tools_used,omitempty"`
+	Context     map[string]interface{} `json:"context,omitempty"`
+	Success     bool                   `json:"success"`
+	Error       string                 `json:"error,omitempty"`
 }
 
 // HTTPRequestConfig represents HTTP request configuration

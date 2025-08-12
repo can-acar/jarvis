@@ -97,6 +97,20 @@ func Set(key, value string) error {
 	return nil
 }
 
+// SetModelConfig sets the model configuration (thread-safe)
+func SetModelConfig(modelConfig *types.ModelConfig) error {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if instance == nil {
+		Initialize()
+	}
+
+	instance.ModelConfig = modelConfig
+	saveToFile()
+	return nil
+}
+
 // GetJSON returns the configuration as a JSON string
 func GetJSON() (string, error) {
 	config := Get()
@@ -251,7 +265,7 @@ func getConfigPath() string {
 	if err != nil {
 		return "jarvis-mcp.json"
 	}
-	return filepath.Join(homeDir, ".jarvis-mcp.json")
+	return filepath.Join(homeDir, "jarvis-mcp.json")
 }
 
 func loadFromFile() {
@@ -293,6 +307,51 @@ func saveToFile() {
 	}
 
 	os.WriteFile(configPath, data, 0644)
+}
+
+// LoadFromCustomFile loads configuration from a custom JSON file
+func LoadFromCustomFile(configPath string) error {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if instance == nil {
+		Initialize()
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %v", err)
+	}
+
+	var fileConfig types.ServerConfig
+	if err := json.Unmarshal(data, &fileConfig); err != nil {
+		return fmt.Errorf("failed to parse config file: %v", err)
+	}
+
+	// Merge with current configuration (overwrite with loaded values)
+	if len(fileConfig.BlockedCommands) > 0 {
+		instance.BlockedCommands = fileConfig.BlockedCommands
+	}
+	if fileConfig.DefaultShell != "" {
+		instance.DefaultShell = fileConfig.DefaultShell
+	}
+	if len(fileConfig.AllowedDirectories) > 0 {
+		instance.AllowedDirectories = fileConfig.AllowedDirectories
+	}
+	if fileConfig.FileReadLineLimit > 0 {
+		instance.FileReadLineLimit = fileConfig.FileReadLineLimit
+	}
+	if fileConfig.FileWriteLineLimit > 0 {
+		instance.FileWriteLineLimit = fileConfig.FileWriteLineLimit
+	}
+	instance.TelemetryEnabled = fileConfig.TelemetryEnabled
+	
+	// Load model configuration if present
+	if fileConfig.ModelConfig != nil {
+		instance.ModelConfig = fileConfig.ModelConfig
+	}
+
+	return nil
 }
 
 // GenerateCharacterDiff creates a character-level diff between two strings
