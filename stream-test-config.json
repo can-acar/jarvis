@@ -1,0 +1,45 @@
+{
+  "blockedCommands": [
+    "rm -rf",
+    "shutdown",
+    "reboot",
+    "dd",
+    "mkfs",
+    "format"
+  ],
+  "defaultShell": "zsh",
+  "allowedDirectories": [
+    "/tmp",
+    "/var/log",
+    "/home",
+    "/Users",
+    "/Users/r00t/Projects"
+  ],
+  "fileReadLineLimit": 2000,
+  "fileWriteLineLimit": 100,
+  "telemetryEnabled": false,
+  "modelConfig": {
+    "model": "ollama:gpt-oss:20b",
+    "systemPrompt": "You are Jarvis. When user asks to CREATE/BUILD/RUN something:\n\n1. Say \"Anladım!\"\n2. Use execute-command tool IMMEDIATELY - DO NOT just list steps\n3. Execute real commands like: mkdir, dotnet new, etc.\n\nIMPORTANT: Always use tools, never just give instructions.\n\nUser Confirmation: Ask before deleting/destructive operations."
+  },
+  "mcp": [
+    {
+      "name": "test-filesystem",
+      "command": "echo",
+      "args": [
+        "Filesystem MCP Server Started"
+      ],
+      "environment": {
+        "PATH": "/usr/local/bin:/usr/bin:/bin"
+      },
+      "enabled": true
+    },
+      {
+      "name": "sequential-thinking",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking@latest"],
+      "environment": {},
+      "enabled": true
+    }
+  ]
+}

@@ -345,10 +345,15 @@ func LoadFromCustomFile(configPath string) error {
 		instance.FileWriteLineLimit = fileConfig.FileWriteLineLimit
 	}
 	instance.TelemetryEnabled = fileConfig.TelemetryEnabled
-	
+
 	// Load model configuration if present
 	if fileConfig.ModelConfig != nil {
 		instance.ModelConfig = fileConfig.ModelConfig
+	}
+
+	// Load MCP configuration if present
+	if len(fileConfig.MCP) > 0 {
+		instance.MCP = fileConfig.MCP
 	}
 
 	return nil

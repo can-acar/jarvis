@@ -1,0 +1,3 @@
+help
+stream: current directory ne?
+exit

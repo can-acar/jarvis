@@ -1,0 +1,50 @@
+{
+  "blockedCommands": [
+    "rm -rf",
+    "shutdown",
+    "reboot",
+    "dd",
+    "mkfs",
+    "format"
+  ],
+  "defaultShell": "bash",
+  "allowedDirectories": [
+    "/tmp",
+    "/var/log",
+    "/home",
+    "/Users"
+  ],
+  "fileReadLineLimit": 2000,
+  "fileWriteLineLimit": 100,
+  "telemetryEnabled": false,
+  "modelConfig": {
+    "model": "ollama:llama3",
+    "systemPrompt": "You are Jarvis, a highly capable AI assistant with access to system tools. Be helpful, accurate, and secure in all operations. You can use function calling to execute tools and commands on the system."
+  },
+  "mcp": [
+    {
+      "name": "example-filesystem",
+      "command": "filesystem-mcp-server",
+      "args": [
+        "--stdio"
+      ],
+      "environment": {
+        "PATH": "/Users/r00t/.bun/bin:/Users/r00t/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/Library/Apple/usr/bin:/usr/local/share/dotnet:~/.dotnet/tools:/usr/local/go/bin:/opt/homebrew/bin:/Users/r00t/.bun/bin:/Users/r00t/bin:/Users/r00t/Library/Application Support/JetBrains/Toolbox/scripts:/Users/r00t/.lmstudio/bin:/Users/r00t/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand:/Users/r00t/Library/Application Support/JetBrains/Toolbox/scripts:/Users/r00t/.lmstudio/bin"
+      },
+      "enabled": false
+    },
+    {
+      "name": "example-database",
+      "command": "database-mcp-server",
+      "args": [
+        "--stdio",
+        "--db-path",
+        "/tmp/example.db"
+      ],
+      "environment": {
+        "PATH": "/Users/r00t/.bun/bin:/Users/r00t/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/Library/Apple/usr/bin:/usr/local/share/dotnet:~/.dotnet/tools:/usr/local/go/bin:/opt/homebrew/bin:/Users/r00t/.bun/bin:/Users/r00t/bin:/Users/r00t/Library/Application Support/JetBrains/Toolbox/scripts:/Users/r00t/.lmstudio/bin:/Users/r00t/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand:/Users/r00t/Library/Application Support/JetBrains/Toolbox/scripts:/Users/r00t/.lmstudio/bin"
+      },
+      "enabled": false
+    }
+  ]
+}

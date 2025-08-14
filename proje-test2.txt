@@ -1,0 +1,4 @@
+mkdir -p /Users/r00t/Projects/yeni-proje komutu çalıştır
+echo "Selam Dünyalı" > /Users/r00t/Projects/yeni-proje/readme.md komutu çalıştır
+ls -la /Users/r00t/Projects/yeni-proje komutu çalıştır
+exit

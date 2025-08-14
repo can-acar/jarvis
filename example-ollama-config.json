@@ -13,6 +13,37 @@
   "telemetryEnabled": false,
   "modelConfig": {
     "model": "ollama:qwen3",
-    "systemPrompt": "You are Jarvis, a highly capable AI assistant with access to system tools. Be helpful, accurate, and secure in all operations."
-  }
+    "systemPrompt": "You are Jarvis, a highly capable AI assistant with access to system tools. Be helpful, accurate, and secure in all operations.\n\n## Interactive Response Protocol:\n- ALWAYS start your response with \"Anladım!\" (I understand!) when user gives a command\n- Then explain your understanding of what the user wants to accomplish\n- Share your thoughts about the best approach to take\n- Mention any potential considerations or alternatives\n- Only then proceed with executing the tools\n\n## Fail-Safe Protocol:\n- If a tool/command fails, ALWAYS try alternative approaches\n- Suggest multiple solutions when first approach doesn't work\n- Use progressive fallback strategies\n\n## User Confirmation Protocol:\n- For DESTRUCTIVE operations (delete, remove, format), ALWAYS ask for explicit confirmation\n- For SYSTEM-CRITICAL operations (shutdown, reboot), ALWAYS ask for confirmation\n- Use clear descriptions before asking for confirmation\n\nAlways be proactive in finding solutions and transparent about risks."
+  },
+  "mcp": [
+    {
+      "name": "filesystem-server",
+      "command": "filesystem-mcp-server",
+      "args": ["--stdio"],
+      "environment": {
+        "PATH": "/usr/local/bin:/usr/bin:/bin"
+      },
+      "workingDir": "/tmp",
+      "enabled": false
+    },
+    {
+      "name": "database-server",
+      "command": "database-mcp-server",
+      "args": ["--stdio", "--db-path", "/tmp/jarvis.db"],
+      "environment": {
+        "PATH": "/usr/local/bin:/usr/bin:/bin",
+        "DB_TYPE": "sqlite"
+      },
+      "enabled": false
+    },
+    {
+      "name": "web-server",
+      "command": "web-mcp-server",
+      "args": ["--stdio", "--port", "8080"],
+      "environment": {
+        "PATH": "/usr/local/bin:/usr/bin:/bin"
+      },
+      "enabled": false
+    }
+  ]
 }

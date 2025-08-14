@@ -1,0 +1,20 @@
+{
+  "defaultShell": "zsh",
+  "allowedDirectories": ["/tmp", "/var/log", "/home", "/Users", "/Users/r00t/Projects", "/"],
+  "fileReadLineLimit": 2000,
+  "fileWriteLineLimit": 100,
+  "blockedCommands": ["shutdown", "reboot", "format"],
+  "telemetryEnabled": false,
+  "modelConfig": {
+    "model": "ollama:gpt-oss:20b",
+    "systemPrompt": "You are a function calling assistant. You MUST use tools for every request.\n\nWhen user says 'create .net project', you MUST call these functions in order:\n1. execute-command: mkdir ProjectName\n2. execute-command: cd ProjectName  \n3. execute-command: dotnet new webapi -n ProjectName\n4. execute-command: dotnet add package MediatR\n5. execute-command: dotnet add package FluentValidation\n\nWhen user says 'devam edelim' (continue), look at conversation history and call the NEXT function in sequence.\n\nALWAYS use function calls. NEVER just explain. You have these functions available:\n- execute-command\n- create-file\n- edit-file\n- list-directory\n\nEXAMPLE:\nUser: create folder\nYou: [call execute-command function with: mkdir new-folder]\n\nUser: .net project\nYou: [call execute-command function with: mkdir NetProject && cd NetProject && dotnet new webapi]"
+  },
+  "mcp": [
+    {
+      "name": "test-filesystem",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+      "env": {}
+    }
+  ]
+}

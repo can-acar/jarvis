@@ -1,0 +1,4 @@
+help
+/tmp dizininde test-klasoru oluştur
+ls komutu çalıştır ama başarısız olursa alternatif dene
+exit

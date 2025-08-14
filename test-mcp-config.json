@@ -1,0 +1,43 @@
+{
+  "blockedCommands": [
+    "shutdown",
+    "reboot",
+    "format"
+  ],
+  "defaultShell": "bash",
+  "allowedDirectories": [
+    "/tmp",
+    "/var/log",
+    "/home",
+    "/Users",
+    "/Users/r00t"
+  ],
+  "fileReadLineLimit": 2000,
+  "fileWriteLineLimit": 100,
+  "telemetryEnabled": false,
+  "modelConfig": {
+    "model": "ollama:llama3",
+    "systemPrompt": "You are Jarvis, a highly capable AI assistant with access to system tools. Be helpful, accurate, and secure in all operations. You can use function calling to execute tools and commands on the system."
+  },
+  "mcp": [
+    {
+      "name": "jarvis",
+      "command": "jarvis",
+      "args": [],
+      "environment": {
+      },
+      "enabled": true
+    },
+    {
+      "name": "test-database",
+      "command": "echo",
+      "args": [
+        "Database MCP Server Started"
+      ],
+      "environment": {
+        "PATH": "/usr/local/bin:/usr/bin:/bin"
+      },
+      "enabled": true
+    }
+  ]
+}

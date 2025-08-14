@@ -1,0 +1,2 @@
+/Users/r00t/Projects dizini altında yeni-proje klasörü oluştur ve içinde readme.md dosyası yarat, dosyanın içeriğine "Selam Dünyalı" yaz
+exit

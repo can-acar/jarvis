@@ -1,0 +1,4 @@
+non-existent-command çalıştır
+cat /does-not-exist.txt dosyasını oku
+rm test-file.txt dosyasını sil (risky operation test)
+exit
